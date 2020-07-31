@@ -1,0 +1,99 @@
+server {
+    listen      %ip%:%web_ssl_port%;
+    server_name %domain_idn% %alias_idn%;
+    root        %sdocroot%/public;
+    index       index.php index.html index.htm;
+    access_log  /var/log/nginx/domains/%domain%.log combined;
+    access_log  /var/log/nginx/domains/%domain%.bytes bytes;
+    error_log   /var/log/nginx/domains/%domain%.error.log error;
+
+
+    ssl         on;
+    ssl_certificate      %ssl_pem%;
+    ssl_certificate_key  %ssl_key%;
+
+
+
+    set $cors '';
+    set $cors_origin "";
+    set $cors_credentials   "";
+    set $cors_method "";
+    set $cors_header "";
+    set $cors_expose "";
+
+    if ($http_origin ~ '^(http|https)?:\/\/(localhost|(www\.|)(sipot\.wonex\.best|back\.sipot\.wonex\.best))') {
+            set $cors 'true';
+    }
+    if ($request_filename ~* ^.*?/([^/]*?)$){
+            set $filename $1; 
+    }
+
+    if ($filename ~* ^.*?\.(eot)|(ttf)|(woff)$){
+            set $cors 'true';
+    }
+    if ($cors = 'true') {
+            set $cors_origin $http_origin;
+            set $cors_credentials   true;
+            set $cors_header $http_access_control_request_headers;
+            set $cors_method $http_access_control_request_method;
+            set $cors_expose 'Authorization';
+    }
+
+    add_header 'Access-Control-Allow-Origin'      $cors_origin always;
+    add_header 'Access-Control-Allow-Credentials' $cors_credentials always;
+    add_header 'Access-Control-Allow-Headers'    $cors_header always;
+    add_header 'Access-Control-Allow-Methods'     $cors_method always;
+    # required to be able to read Authorization header in frontend
+    #add_header 'Access-Control-Expose-Headers' $cors_expose always;
+
+    if ($request_method = 'OPTIONS') {
+            # Tell client that this pre-flight info is valid for 20 days
+            # add_header 'Access-Control-Max-Age' 1728000;
+            # add_header 'Content-Type' 'text/plain charset=UTF-8';
+            # add_header 'Content-Length' 0;
+            return 204;
+    }
+
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+        location ~* ^.+\.(jpeg|jpg|png|gif|bmp|ico|svg|css|js)$ {
+            expires     max;
+        }
+
+        location ~ [^/]\.php(/|$) {
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            if (!-f $document_root$fastcgi_script_name) {
+                return  404;
+            }
+
+            fastcgi_pass    %backend_lsnr%;
+            fastcgi_index   index.php;
+            include         /etc/nginx/fastcgi_params;
+        }
+    }
+
+    error_page  403 /error/404.html;
+    error_page  404 /error/404.html;
+    error_page  500 502 503 504 /error/50x.html;
+
+    location /error/ {
+        alias   %home%/%user%/web/%domain%/document_errors/;
+    }
+
+    location ~* "/\.(htaccess|htpasswd)$" {
+        deny    all;
+        return  404;
+    }
+
+    location /vstats/ {
+        alias   %home%/%user%/web/%domain%/stats/;
+        include %home%/%user%/conf/web/%domain%.auth*;
+    }
+
+    include     /etc/nginx/conf.d/phpmyadmin.inc*;
+    include     /etc/nginx/conf.d/phppgadmin.inc*;
+    include     /etc/nginx/conf.d/webmail.inc*;
+
+    include     %home%/%user%/conf/web/snginx.%domain%.conf*;
+}
