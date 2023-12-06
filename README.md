@@ -9,3 +9,7 @@ custom configs
 - react-cors-force-https 
 - react-force-https
 - wordpress2-rewrite-force-https
+
+copy configs (not folders) in the following location:
+cd /usr/local/vesta/data/templates/web/nginx/php-fpm
+cd /usr/local/hestia/data/templates/web/nginx/php-fpm
